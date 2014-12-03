@@ -16,7 +16,7 @@ class DiffChunk(object):
         summary = self.contents.split('\n')[0] + "..."
         return "DiffChunk%s" % repr((self.op_type, self.start, summary))
 
-    def linerange_for_match(self, match, offset=0):
+    def lineRangeForMatch(self, match, offset=0):
         """Map a regex match to start and end line nos within the file"""
         text = match.string
         offset += self.start

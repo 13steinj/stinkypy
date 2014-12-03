@@ -64,7 +64,7 @@ class RegExpCodeSniffer(AbstractCodeSniffer):
         matches = {}
         for code_re in self._code_res:
             for match in re.finditer(code_re, chunk.contents):
-                coords = chunk.linenos_for_match(match)
+                coords = chunk.lineRangeForMatch(match)
                 matches[coords] = match
         return matches
 
