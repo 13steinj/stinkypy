@@ -6,3 +6,4 @@
 *.diff
 *.patch
 *.idea
+*.egg-info
