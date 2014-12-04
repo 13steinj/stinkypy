@@ -23,8 +23,8 @@ class PullRequestEvent(dict):
     """Simple wrapper around the JSON returned by the PR webhook"""
 
     def getLineLink(self, file_path, line_range):
-        base_url = self["pull_request"]["url"]
-        return base_url + "#" + gen_diff_anchor(file_path, line_range)
+        base_url = self["pull_request"]["html_url"]
+        return base_url + "/files#" + gen_diff_anchor(file_path, line_range)
 
     def getDiff(self, session):
         headers = {"Accept": "application/vnd.github.3.diff"}
