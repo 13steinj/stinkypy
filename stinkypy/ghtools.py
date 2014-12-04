@@ -1,5 +1,6 @@
 import hashlib
 import requests
+import stinkypy
 
 
 def gen_diff_anchor(path, linerange):
@@ -13,7 +14,8 @@ def gen_diff_anchor(path, linerange):
 def get_gh_session(access_token):
     sess = requests.session()
     sess.auth = (access_token, 'x-oauth-basic')
-    sess.headers['User-Agent'] = 'stinkypy by @JordanMilne/0.1'
+    version = stinkypy.__version__
+    sess.headers['User-Agent'] = 'stinkypy diff sniffer/%s' % version
     return sess
 
 

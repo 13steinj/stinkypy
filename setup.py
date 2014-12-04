@@ -1,13 +1,12 @@
 from setuptools import setup
+import stinkypy
 
 setup(
     name='stinkypy',
-    version='0.1',
+    version=stinkypy.__version__,
     packages=['stinkypy'],
-    url='https://github.com/JordanMilne/stinkypy',
+    url='https://github.com/reddit/stinkypy',
     license='MIT',
-    author='Jordan Milne',
-    author_email='stinkypy@saynotolinux.com',
     description='Library to aid in finding patterns associated with security issues within diffs',
     requires=['requests']
 )
