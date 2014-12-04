@@ -2,8 +2,7 @@ import re
 
 from collections import defaultdict, OrderedDict
 
-from difftools import chunkify_diff
-from .unidiff.patch import LINE_TYPE_ADD
+from difftools import chunkify_diff, ChangeType
 
 
 def sniff_diff(diff, sniffers):
@@ -25,10 +24,12 @@ class Smell(object):
 
 
 class AbstractCodeSniffer(object):
-    def __init__(self, title, path_re=None, op_types={LINE_TYPE_ADD}):
+    def __init__(self, title, path_re=None, change_types=None):
+        if change_types is None:
+            change_types = {ChangeType.ADD}
         self.title = title
         self._path_re = path_re
-        self._op_types = op_types
+        self._change_types = change_types
 
     def sniff(self, d_file, chunks):
         if self._path_re:
@@ -39,13 +40,20 @@ class AbstractCodeSniffer(object):
         # by multiple regexes checking for the same issue.
         matches = {}
         for chunk in chunks:
-            # TODO: When sniffing additions we can just sniff the remote file
-            # and look for smells that intersect with chunks in the diff. That
-            # way we have the whole file available as context, and aren't
-            # limited to lines in the diff's context.
-            if chunk.op_type not in self._op_types:
+            # We look at local context chunks to find possibly deleted lines,
+            # added lines will be in remote context chunks.
+            change_type = ChangeType.DELETE if chunk.local else ChangeType.ADD
+            if change_type not in self._change_types:
                 continue
-            matches.update(self._sniffImpl(d_file, chunk))
+            context_matches = self._sniffImpl(d_file, chunk)
+
+            # Now figure out which issues actually occur on changed lines
+            for line_range, match in context_matches.iteritems():
+                smell_in_diff = d_file.range_is_modified(
+                    line_range.start, line_range.end, line_range.local_linenos
+                )
+                if smell_in_diff:
+                    matches[line_range] = match
 
         if not matches:
             return None
@@ -56,8 +64,8 @@ class AbstractCodeSniffer(object):
 
 
 class RegExpCodeSniffer(AbstractCodeSniffer):
-    def __init__(self, title, code_res, path_re=None, op_types={LINE_TYPE_ADD}):
-        super(RegExpCodeSniffer, self).__init__(title, path_re, op_types)
+    def __init__(self, title, code_res, path_re=None, change_types=None):
+        super(RegExpCodeSniffer, self).__init__(title, path_re, change_types)
         self._code_res = code_res
 
     def _sniffImpl(self, d_file, chunk):
@@ -70,13 +78,8 @@ class RegExpCodeSniffer(AbstractCodeSniffer):
 
 
 class InlineScriptRegExpSniffer(RegExpCodeSniffer):
-    """
-    Sniffer that matches on patterns inside inline scripts
+    """Sniffer that matches on patterns inside inline scripts"""
 
-    Keep in mind that currently this can't make use of context lines in
-    diffs, so this will only match on <script> tags in the commit in which
-    they're added.
-    """
     EVENT_HANDLER_RE = re.compile(r"\son[a-z_\-]+=(['\"])([^\1]*?)\1",
                                   re.IGNORECASE)
     SCRIPT_TAG_RE = re.compile(r"<script(\s.*?)?>(.*?)</\s*script>",
@@ -103,7 +106,7 @@ class InlineScriptRegExpSniffer(RegExpCodeSniffer):
         lineno_offset = script_match.string.count("\n", 0, script_match.start())
         for code_re in self._code_res:
             for match in re.finditer(code_re, script_text):
-                coords = chunk.linenos_for_match(match, offset=lineno_offset)
+                coords = chunk.lineRangeForMatch(match, offset=lineno_offset)
                 matches[coords] = match
         return matches
 
@@ -112,19 +115,20 @@ class JSRegExpSniffer(RegExpCodeSniffer):
     """Sniffs both inline and separate scripts for specific patterns"""
 
     def __init__(self, title, code_res, template_path_re, path_re=None,
-                 op_types={LINE_TYPE_ADD}):
+                 change_types=None):
         super(JSRegExpSniffer, self).__init__(
             title,
             path_re,
             path_re=path_re,
-            op_types=op_types
+            change_types=change_types
         )
         self._sniffers = (
             InlineScriptRegExpSniffer(
-                title, code_res, path_re=template_path_re
+                title, code_res, path_re=template_path_re,
+                change_types=change_types
             ),
             RegExpCodeSniffer(
-                title, code_res, path_re=r".*\.jsx?"
+                title, code_res, path_re=r".*\.jsx?", change_types=change_types
             ),
         )
 

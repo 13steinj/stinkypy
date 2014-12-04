@@ -1,20 +1,36 @@
 from cStringIO import StringIO
 
 from .unidiff import parser
-from .unidiff.patch import LINE_TYPE_CONTEXT, LINE_TYPE_DELETE
 
 
-class DiffChunk(object):
-    def __init__(self, op_type, start, contents):
-        # For deletions `start` is a local line number; for additions,
-        # a remote line number.
+class ChangeType(object):
+    DELETE = "Delete"
+    ADD = "Add"
+
+
+class ContextChunk(object):
+    """Complete chunk of code for matching on"""
+
+    def __init__(self, local, start, contents, whole_file=False):
         self.start = start
         self.contents = contents
-        self.op_type = op_type
+        self.local = local
+        # In the future might be used to allow AST-based checks when True
+        self.whole_file = whole_file
 
     def __repr__(self):
         summary = self.contents.split('\n')[0] + "..."
-        return "DiffChunk%s" % repr((self.op_type, self.start, summary))
+        return "DiffChunk%s" % repr((self.local, self.start, summary))
+
+    @classmethod
+    def fromDiffHunk(cls, hunk):
+        """Get ContextChunks for both the local and remote sides of a hunk"""
+        local_joined = "".join(hunk.source_lines)
+        remote_joined = "".join(hunk.target_lines)
+        return (
+            ContextChunk(True, hunk.source_start, local_joined),
+            ContextChunk(False, hunk.target_start, remote_joined)
+        )
 
     def lineRangeForMatch(self, match, offset=0):
         """Map a regex match to start and end line nos within the file"""
@@ -22,12 +38,12 @@ class DiffChunk(object):
         offset += self.start
         abs_lineno = lambda x: offset + text.count("\n", 0, x)
         abs_linenos = tuple(map(abs_lineno, (match.start(), match.end())))
-        local_linenos = self.op_type == LINE_TYPE_DELETE
-        return DiffLineRange(local_linenos, *abs_linenos)
+        return DiffLineRange(self.local, *abs_linenos)
 
 
 class DiffLineRange(object):
     def __init__(self, local, start, end):
+        # NB: not factored into comparisons
         self.local_linenos = local
         self.start = start
         self.end = end
@@ -38,39 +54,17 @@ class DiffLineRange(object):
     def __str__(self):
         return self.toString()
 
+    def __iter__(self):
+        return xrange(self.start, self.end + 1)
+
+    def intersects(self, other):
+        return max(self.start, other.start) >= min(self.end, other.end)
+
     def toString(self, start_only=False):
         start_only = start_only or self.start == self.end
         lines = (self.start,) if start_only else (self.start, self.end)
         prfx = "L" if self.local_linenos else "R"
         return "-".join(map(lambda x: prfx + str(x), lines))
-
-
-def merge_chunks(start, types, lines):
-    # Chunk together neighbouring operations of the same type so we can
-    # do multi-line matches for things like:
-    # ```
-    # + html_sink(
-    # +     get_untrusted("ack!")
-    # + )
-    # ```
-    chunks = []
-    chunk_start = start
-    chunk_buf = ""
-    last_type = None
-
-    for i, line_type in enumerate(types):
-        # Start of new chunk or last line
-        if line_type != last_type:
-            if chunk_buf:
-                chunks.append(DiffChunk(last_type, chunk_start, chunk_buf))
-            chunk_buf = ""
-            chunk_start = start + i
-
-        chunk_buf += lines[i]
-        last_type = line_type
-    if chunk_buf:
-        chunks.append(DiffChunk(last_type, chunk_start, chunk_buf))
-    return chunks
 
 
 def chunkify_diff(contents):
@@ -80,21 +74,9 @@ def chunkify_diff(contents):
         chunks = []
         for hunk in d_file:
             # Create addition and deletion chunks
-            chunks += merge_chunks(
-                hunk.target_start,
-                hunk.target_types,
-                hunk.target_lines
-            )
-            chunks += merge_chunks(
-                hunk.source_start,
-                hunk.source_types,
-                hunk.source_lines
-            )
+            chunks += ContextChunk.fromDiffHunk(hunk)
 
-        # Context lines are ignored for simplicity and can't be matched on,
-        # consider yourself warned.
-        useful_chunks = filter(lambda x: x.op_type != LINE_TYPE_CONTEXT, chunks)
-        yield d_file, useful_chunks
+        yield d_file, chunks
 
 
 def get_full_match_lines(match):
