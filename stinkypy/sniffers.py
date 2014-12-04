@@ -77,6 +77,26 @@ class RegExpCodeSniffer(AbstractCodeSniffer):
         return matches
 
 
+class FilteredRegExpSniffer(RegExpCodeSniffer):
+    """A RegExpCodeSniffer with a user-defined post-filter on the matches"""
+
+    def _sniffImpl(self, d_file, chunk):
+        matches = super(FilteredRegExpSniffer, self)._sniffImpl(d_file, chunk)
+        if not matches:
+            return {}
+
+        new_matches = {}
+        for line_range, match in matches.iteritems():
+            if self._verifyStinks(d_file, line_range, match):
+                new_matches[line_range] = match
+
+        return new_matches
+
+    def _verifyStinks(self, d_file, line_range, match):
+        """Verify something found by our initial regexes actually stinks"""
+        raise NotImplementedError()
+
+
 class InlineScriptRegExpSniffer(RegExpCodeSniffer):
     """Sniffer that matches on patterns inside inline scripts"""
 
