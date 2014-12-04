@@ -139,6 +139,32 @@ class PatchedFile(list):
             for line in hunk_data:
                 yield line
 
+    def range_is_modified(self, range_start, range_end, source):
+        """Check if range of lines modified in either the source or target
+
+        If `source` is `True`, then the range refers to lines within the source
+        side of the diff, and we will effectively be looking for deletions.
+        If `False`, it refers to lines within the target and we will be looking
+        for additions.
+
+        The range is inclusive.
+        """
+        for hunk in self:
+            hunk_start = hunk.source_start if source else hunk.target_start
+            hunk_types = hunk.source_types if source else hunk.target_types
+            hunk_end = hunk_start + len(hunk_types) - 1
+
+            # The range is completely inside the hunk
+            if hunk_start <= range_start and hunk_end >= range_end:
+                # Get our range relative to the start of the hunk
+                rel_start = range_start - hunk_start
+                rel_end = range_end - hunk_end + 1
+                intersect_lines = hunk_types[rel_start:rel_end]
+                if any(line != LINE_TYPE_CONTEXT for line in intersect_lines):
+                    return True
+
+        return False
+
     @property
     def path(self):
         """Return the file path abstracted from VCS."""
