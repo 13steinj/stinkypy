@@ -58,7 +58,7 @@ class DiffLineRange(object):
         return xrange(self.start, self.end + 1)
 
     def intersects(self, other):
-        return max(self.start, other.start) >= min(self.end, other.end)
+        return max(self.start, other.start) <= min(self.end, other.end)
 
     def toString(self, start_only=False):
         start_only = start_only or self.start == self.end
