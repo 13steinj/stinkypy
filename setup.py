@@ -8,5 +8,6 @@ setup(
     url='https://github.com/reddit/stinkypy',
     license='MIT',
     description='Library to aid in finding patterns associated with security issues within diffs',
-    requires=['requests']
+    requires=['requests'],
+    scripts=['bin/git-diff-sniff']
 )

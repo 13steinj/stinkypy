@@ -1,0 +1,61 @@
+#!/bin/env python2.7
+
+"""
+A simple wrapper around git diff that looks for user-defined code smells
+"""
+
+import subprocess
+import sys
+import os
+import os.path
+
+from stinkypy.difftools import get_full_match_lines
+from stinkypy.sniffers import sniff_diff
+
+
+def import_settings():
+    settings_path = os.path.expanduser("~/.stinkypy/sniff_settings.py")
+    settings_dir = os.path.dirname(settings_path)
+    if not os.path.exists(settings_path):
+        if not os.path.exists(settings_dir):
+            # Create the directory for them if it doesn't exist
+            os.mkdir(settings_dir, 0700)
+        raise Exception("Couldn't find settings file at %s" % settings_path)
+
+    sys.path.append(settings_dir)
+
+    import sniff_settings as settings
+
+    if not isinstance(getattr(settings, "SNIFFER_MAPPING", None), dict):
+        raise Exception("SNIFFER_MAPPING must be a dict of (str)->"
+                        "(iter of sniffers)")
+    return settings
+
+
+def main():
+    settings = import_settings()
+    ruleset = subprocess.check_output(["git", "config", "--get",
+                                       "stinkypy.ruleset"]).strip()
+
+    if ruleset not in settings.SNIFFER_MAPPING:
+        raise Exception("Couldn't find '%s' in SNIFFER_MAPPING" % ruleset)
+    sniff_config = settings.SNIFFER_MAPPING[ruleset]
+
+    diff = subprocess.check_output(["git", "diff", "-w"] + sys.argv[1:])
+    results = sniff_diff(diff, sniff_config)
+
+    for f_path, smells in results.iteritems():
+        print "--------------------------------"
+        print f_path
+
+        for smell in smells:
+            print "\t+-[%s] %s" % (smell.severity, smell.title)
+            for line_range, match in smell.matches.iteritems():
+                lines = get_full_match_lines(match).strip().split("\n")
+                first_line = lines[0].strip()
+                if len(lines) > 1:
+                    first_line += "..."
+                print "\t\t%s: %s" % (line_range, first_line)
+
+if __name__ == '__main__':
+    main()
