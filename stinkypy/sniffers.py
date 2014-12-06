@@ -17,17 +17,30 @@ def sniff_diff(diff, sniffers):
 
 
 class Smell(object):
-    def __init__(self, title, matches):
+    def __init__(self, title, severity, matches):
         self.title = title
+        self.severity = severity
         # Sort the matches by line number
         self.matches = OrderedDict(sorted(matches.items(), key=lambda x: x[0]))
 
 
+class SmellSeverity(object):
+    # This is a perfectly ok thing to do, but might need extra attention
+    INFO = "Info"
+    # This is normally the wrong thing to do, but there might be valid cases
+    WARN = "Warning"
+    # This is almost certainly incorrect and could lead to vulnerabilities
+    ERROR = "Error"
+
+
 class AbstractCodeSniffer(object):
-    def __init__(self, title, path_re=None, change_types=None):
+    def __init__(self, title, severity=None, path_re=None, change_types=None):
         if change_types is None:
             change_types = {ChangeType.ADD}
+        if severity is None:
+            severity = SmellSeverity.INFO
         self.title = title
+        self._severity = severity
         self._path_re = path_re
         self._change_types = change_types
 
@@ -57,15 +70,21 @@ class AbstractCodeSniffer(object):
 
         if not matches:
             return None
-        return Smell(self.title, matches)
+        return Smell(self.title, self._severity, matches)
 
     def _sniffImpl(self, d_file, chunk):
         raise NotImplementedError()
 
 
 class RegExpCodeSniffer(AbstractCodeSniffer):
-    def __init__(self, title, code_res, path_re=None, change_types=None):
-        super(RegExpCodeSniffer, self).__init__(title, path_re, change_types)
+    def __init__(self, title, code_res, severity=None, path_re=None,
+                 change_types=None):
+        super(RegExpCodeSniffer, self).__init__(
+            title,
+            severity=severity,
+            path_re=path_re,
+            change_types=change_types
+        )
         self._code_res = code_res
 
     def _sniffImpl(self, d_file, chunk):
@@ -134,21 +153,29 @@ class InlineScriptRegExpSniffer(RegExpCodeSniffer):
 class JSRegExpSniffer(RegExpCodeSniffer):
     """Sniffs both inline and separate scripts for specific patterns"""
 
-    def __init__(self, title, code_res, template_path_re, path_re=None,
-                 change_types=None):
+    def __init__(self, title, code_res, template_path_re, severity=None,
+                 path_re=None, change_types=None):
         super(JSRegExpSniffer, self).__init__(
             title,
-            path_re,
+            code_res,
+            severity=severity,
             path_re=path_re,
             change_types=change_types
         )
         self._sniffers = (
             InlineScriptRegExpSniffer(
-                title, code_res, path_re=template_path_re,
-                change_types=change_types
+                title,
+                code_res,
+                severity=severity,
+                path_re=template_path_re,
+                change_types=change_types,
             ),
             RegExpCodeSniffer(
-                title, code_res, path_re=r".*\.jsx?", change_types=change_types
+                title,
+                code_res,
+                severity=severity,
+                path_re=r".*\.jsx?",
+                change_types=change_types,
             ),
         )
 
