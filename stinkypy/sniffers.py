@@ -121,12 +121,18 @@ class InlineScriptRegExpSniffer(RegExpCodeSniffer):
 
     EVENT_HANDLER_RE = re.compile(r"\son[a-z_\-]+=(['\"])([^\1]*?)\1",
                                   re.IGNORECASE)
+    SCRIPT_SCHEME_RE = re.compile(r"\shref\s*=\s*(['\"])\w+script:([^\1]*?)\1",
+                                  re.IGNORECASE)
     SCRIPT_TAG_RE = re.compile(r"<script(\s.*?)?>(.*?)</\s*script>",
                                re.MULTILINE | re.DOTALL | re.IGNORECASE)
 
     def _sniffImpl(self, d_file, chunk):
         matches = {}
         for match in re.finditer(self.EVENT_HANDLER_RE, chunk.contents):
+            matches.update(
+                self._sniffInsideScript(d_file, chunk, match, match.group(2))
+            )
+        for match in re.finditer(self.SCRIPT_SCHEME_RE, chunk.contents):
             matches.update(
                 self._sniffInsideScript(d_file, chunk, match, match.group(2))
             )
