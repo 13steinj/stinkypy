@@ -19,13 +19,11 @@ def get_gh_session(access_token):
     return sess
 
 
-class PullRequestEvent(dict):
-    """Simple wrapper around the JSON returned by the PR webhook"""
+def get_commit_diff(session, commit):
+    headers = {"Accept": "application/vnd.github.3.diff"}
+    return session.get(commit.url, headers=headers).text
 
-    def getLineLink(self, file_path, line_range):
-        base_url = self["pull_request"]["html_url"]
-        return base_url + "/files#" + gen_diff_anchor(file_path, line_range)
 
-    def getDiff(self, session):
-        headers = {"Accept": "application/vnd.github.3.diff"}
-        return session.get(self["pull_request"]["url"], headers=headers).text
+def get_commit_range_link(commit, file_path, line_range):
+    base_url = commit.html_url
+    return base_url + "/#" + gen_diff_anchor(file_path, line_range)
