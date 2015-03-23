@@ -54,6 +54,10 @@ class DiffLineRange(object):
     def __str__(self):
         return self.toString()
 
+    def __hash__(self):
+        # TODO: better hash function
+        return 0
+
     def __iter__(self):
         return xrange(self.start, self.end + 1)
 
@@ -87,3 +91,11 @@ def get_full_match_lines(match):
     match_len = match.end() - match.start()
     end = trailing_nl if trailing_nl != -1 else len(text)
     return text[start:end]
+
+
+def get_match_summary(match):
+    lines = get_full_match_lines(match).split("\n")
+    first_line = lines[0].strip()
+    if len(lines) > 1 or len(first_line) > 800:
+        first_line = first_line[:800] = "..."
+    return first_line

@@ -25,12 +25,31 @@ class Smell(object):
 
 
 class SmellSeverity(object):
-    # This is a perfectly ok thing to do, but might need extra attention
-    INFO = "Info"
-    # This is normally the wrong thing to do, but there might be valid cases
-    WARN = "Warning"
-    # This is almost certainly incorrect and could lead to vulnerabilities
-    ERROR = "Error"
+
+    def __init__(self, name, int_val, color, description):
+        self.name = name
+        self.int_val = int_val
+        self.color = color
+        self.description = description
+
+    def __cmp__(self, other):
+        return cmp(self.int_val, other.int_val)
+
+    def __unicode__(self):
+        return self.name
+
+    def __str__(self):
+        return str(self.name)
+
+
+class SmellSeverities(object):
+    INFO = SmellSeverity("Info", 0, "blue",
+                         "This might require some extra attention to security")
+    WARN = SmellSeverity("Warning", 1, "orange",
+                         "Patterns that might create vulnerabilities present, "
+                         "double check that something safer isn't possible")
+    ERROR = SmellSeverity("Error", 2, "red",
+                          "Known vulnerable pattern detected")
 
 
 class AbstractCodeSniffer(object):
@@ -38,7 +57,7 @@ class AbstractCodeSniffer(object):
         if change_types is None:
             change_types = {ChangeType.ADD}
         if severity is None:
-            severity = SmellSeverity.INFO
+            severity = SmellSeverities.INFO
         self.title = title
         self._severity = severity
         self._path_re = path_re
